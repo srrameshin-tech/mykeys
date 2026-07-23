@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>MyKeys — Credential Vault</title>
+<meta name="app-build" content="20260723-1">
+<link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiTXlLZXlzIiwic2hvcnRfbmFtZSI6Ik15S2V5cyIsInN0YXJ0X3VybCI6Ii4vIiwiZGlzcGxheSI6InN0YW5kYWxvbmUiLCJiYWNrZ3JvdW5kX2NvbG9yIjoiIzFCMUUyNCIsInRoZW1lX2NvbG9yIjoiIzFCMUUyNCJ9">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#1B1E24;
+    --surface:#242833;
+    --surface2:#2E333F;
+    --brass:#C9A227;
+    --brass-dim:#8f7419;
+    --teal:#3F8F82;
+    --text:#FFFFFF;
+    --muted:#9AA0AC;
+    --danger:#B5563C;
+    --border:#363c48;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'IBM Plex Sans', sans-serif;
+    overscroll-behavior:none;
+  }
+  h1,h2,h3,.mono{font-family:'IBM Plex Mono', monospace;}
+  #app{max-width:560px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;}
+
+  /* ---------- Login screen ---------- */
+  #loginScreen{
+    flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:32px; text-align:center;
+  }
+  .vault-icon{
+    width:72px;height:72px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #3a3f4c, var(--surface2) 60%);
+    border:3px solid var(--brass);
+    display:flex;align-items:center;justify-content:center;
+    margin-bottom:20px;
+    box-shadow:0 0 0 6px rgba(201,162,39,0.08);
+  }
+  .vault-icon svg{width:32px;height:32px;}
+  #loginScreen h1{font-size:22px;letter-spacing:1px;margin:0 0 4px;font-weight:700;}
+  #loginScreen p{color:var(--muted);font-size:13px;margin:0 0 28px;}
+  .pin-dots{display:flex;gap:14px;margin-bottom:24px;}
+  .pin-dots span{
+    width:14px;height:14px;border-radius:50%;
+    border:2px solid var(--brass-dim);
+    transition:all .15s;
+  }
+  .pin-dots span.filled{background:var(--brass);border-color:var(--brass);}
+  .keypad{display:grid;grid-template-columns:repeat(3,72px);gap:14px;}
+  .keypad button{
+    width:72px;height:72px;border-radius:50%;
+    background:var(--surface);border:1px solid var(--border);
+    color:var(--text);font-size:22px;font-family:'IBM Plex Mono',monospace;font-weight:600;
+    cursor:pointer;
+  }
+  .keypad button:active{background:var(--surface2);transform:scale(0.95);}
+  .keypad button.action{background:none;border:none;color:var(--muted);font-size:14px;}
+  #loginError{color:var(--danger);font-size:13px;height:18px;margin-top:14px;}
+
+  /* ---------- Header ---------- */
+  header{
+    padding:18px 18px 14px;border-bottom:1px solid var(--border);
+    display:flex;align-items:center;justify-content:space-between;
+    position:sticky;top:0;background:var(--bg);z-index:10;
+  }
+  header .brand{display:flex;align-items:center;gap:10px;}
+  header .brand .dot{width:10px;height:10px;border-radius:50%;background:var(--teal);box-shadow:0 0 8px var(--teal);}
+  header h1{font-size:17px;margin:0;letter-spacing:0.5px;}
+  header button.icon-btn{
+    background:none;border:1px solid var(--border);color:var(--muted);
+    width:36px;height:36px;border-radius:9px;font-size:16px;cursor:pointer;
+  }
+
+  main{flex:1;padding:16px;padding-bottom:90px;}
+
+  .search-bar{
+    display:flex;align-items:center;gap:8px;
+    background:var(--surface);border:1px solid var(--border);border-radius:10px;
+    padding:10px 14px;margin-bottom:16px;
+  }
+  .search-bar input{
+    flex:1;background:none;border:none;outline:none;color:var(--text);font-size:14px;
+  }
+  .search-bar input::placeholder{color:var(--muted);}
+
+  /* ---------- Customer card ---------- */
+  .customer-card{
+    background:var(--surface);border:1px solid var(--border);border-radius:14px;
+    margin-bottom:14px; overflow:hidden;
+  }
+  .customer-head{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:14px 16px;cursor:pointer;
+  }
+  .customer-head .info{display:flex;flex-direction:column;gap:2px;}
+  .customer-head .name{font-weight:600;font-size:15px;}
+  .customer-head .meta{color:var(--muted);font-size:12px;}
+  .customer-head .count{
+    font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--brass);
+    background:rgba(201,162,39,0.1);padding:3px 9px;border-radius:20px;
+  }
+  .customer-body{display:none;padding:0 14px 14px;}
+  .customer-body.open{display:block;}
+
+  /* ---------- Key-tag (account) card — signature element ---------- */
+  .keytag{
+    position:relative;
+    background:var(--surface2);
+    border:1px solid var(--border);
+    border-left:4px solid var(--brass);
+    border-radius:8px;
+    padding:12px 14px 12px 26px;
+    margin-top:10px;
+  }
+  .keytag::before{
+    content:'';
+    position:absolute; left:10px; top:50%; transform:translateY(-50%);
+    width:8px;height:8px;border-radius:50%;
+    background:var(--bg); border:1.5px solid var(--brass-dim);
+  }
+  .keytag .type-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+  .keytag .type{
+    font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--teal);
+    text-transform:uppercase;letter-spacing:0.5px;
+  }
+  .keytag .kdate{font-size:10px;color:var(--muted);}
+  .keytag .field{display:flex;align-items:center;justify-content:space-between;padding:5px 0;font-size:13px;}
+  .keytag .field .val{font-family:'IBM Plex Mono',monospace;}
+  .keytag .field .masked{letter-spacing:2px;color:var(--muted);}
+  .keytag .field-actions{display:flex;gap:6px;}
+  .keytag .mini-btn{
+    background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:2px 4px;
+  }
+  .keytag .mini-btn:active{color:var(--brass);}
+  .keytag .notes{font-size:12px;color:var(--muted);margin-top:6px;font-style:italic;}
+  .keytag .row-actions{display:flex;justify-content:flex-end;gap:14px;margin-top:8px;}
+  .keytag .row-actions button{
+    background:none;border:none;font-size:11px;cursor:pointer;font-family:'IBM Plex Sans';
+  }
+  .keytag .row-actions .del{color:var(--danger);}
+  .keytag .row-actions .edt{color:var(--muted);}
+
+  .add-account-btn{
+    width:100%;margin-top:12px;padding:10px;border-radius:8px;
+    background:none;border:1px dashed var(--border);color:var(--muted);
+    font-size:13px;cursor:pointer;
+  }
+  .add-account-btn:active{border-color:var(--brass);color:var(--brass);}
+
+  .customer-tools{display:flex;justify-content:flex-end;gap:16px;padding:6px 2px 2px;}
+  .customer-tools button{background:none;border:none;font-size:11px;cursor:pointer;color:var(--muted);}
+  .customer-tools .del{color:var(--danger);}
+
+  /* ---------- FAB ---------- */
+  .fab{
+    position:fixed;bottom:24px;right:calc(50% - 280px + 20px);
+    width:56px;height:56px;border-radius:50%;
+    background:var(--brass);color:#1B1E24;border:none;
+    font-size:26px;font-weight:700;cursor:pointer;
+    box-shadow:0 4px 16px rgba(201,162,39,0.35);
+    display:flex;align-items:center;justify-content:center;
+  }
+  @media (max-width:600px){
+    .fab{right:20px;}
+  }
+
+  /* ---------- Modal ---------- */
+  .overlay{
+    position:fixed;inset:0;background:rgba(0,0,0,0.6);
+    display:none;align-items:flex-end;justify-content:center;z-index:100;
+  }
+  .overlay.show{display:flex;}
+  .sheet{
+    background:var(--surface);width:100%;max-width:560px;
+    border-radius:18px 18px 0 0;padding:22px;
+    max-height:85vh;overflow-y:auto;
+  }
+  .sheet h2{font-size:16px;margin:0 0 16px;}
+  .field-group{margin-bottom:14px;}
+  .field-group label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:6px;}
+  .field-group input, .field-group textarea, .field-group select{
+    width:100%;background:var(--surface2);border:1px solid var(--border);
+    border-radius:8px;padding:11px 12px;color:var(--text);font-size:14px;outline:none;
+    font-family:'IBM Plex Sans';
+  }
+  .field-group textarea{resize:vertical;min-height:50px;}
+  .sheet-actions{display:flex;gap:10px;margin-top:8px;}
+  .btn{
+    flex:1;padding:12px;border-radius:9px;border:none;font-size:14px;font-weight:600;cursor:pointer;
+  }
+  .btn.primary{background:var(--brass);color:#1B1E24;}
+  .btn.ghost{background:none;border:1px solid var(--border);color:var(--muted);}
+
+  .empty-state{text-align:center;padding:60px 20px;color:var(--muted);}
+  .empty-state .vicon{font-size:40px;margin-bottom:12px;opacity:0.5;}
+  .toast{
+    position:fixed;bottom:100px;left:50%;transform:translateX(-50%);
+    background:var(--surface2);border:1px solid var(--brass);color:var(--text);
+    padding:10px 18px;border-radius:20px;font-size:13px;z-index:200;
+    opacity:0;pointer-events:none;transition:opacity .2s;
+  }
+  .toast.show{opacity:1;}
+  #updateBanner{
+    display:none;position:fixed;top:0;left:0;right:0;background:var(--teal);color:#fff;
+    text-align:center;padding:8px;font-size:12px;z-index:300;
+  }
+</style>
+</head>
+<body>
+<div id="updateBanner">New version available — reloading…</div>
+<div id="app">
+
+  <div id="loginScreen">
+    <div class="vault-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#C9A227" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="3" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="21"/></svg>
+    </div>
+    <h1>MYKEYS</h1>
+    <p>Credential Vault — enter PIN</p>
+    <div class="pin-dots" id="pinDots">
+      <span></span><span></span><span></span><span></span><span></span><span></span>
+    </div>
+    <div class="keypad" id="keypad">
+      <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
+      <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button>
+      <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button>
+      <button class="action" data-k="clear">Clear</button><button data-k="0">0</button><button class="action" data-k="back">⌫</button>
+    </div>
+    <div id="loginError"></div>
+  </div>
+
+  <div id="mainScreen" style="display:none;flex:1;display:flex;flex-direction:column;">
+    <header>
+      <div class="brand"><span class="dot"></span><h1>MYKEYS</h1></div>
+      <button class="icon-btn" onclick="lockApp()">⏻</button>
+    </header>
+    <main>
+      <div class="search-bar">
+        <span>🔍</span>
+        <input type="text" id="searchInput" placeholder="Search customer or company...">
+      </div>
+      <div id="customerList"></div>
+    </main>
+    <button class="fab" onclick="openNewCustomer()">+</button>
+  </div>
+
+</div>
+
+<!-- New Customer Modal -->
+<div class="overlay" id="customerModal">
+  <div class="sheet">
+    <h2>New Customer</h2>
+    <div class="field-group"><label>Customer / Company Name</label><input id="custName" placeholder="e.g. XYZ Travels"></div>
+    <div class="field-group"><label>Contact Person</label><input id="custContact" placeholder="e.g. Rajesh"></div>
+    <div class="field-group"><label>Phone</label><input id="custPhone" placeholder="e.g. 98765xxxxx"></div>
+    <div class="field-group"><label>Notes</label><textarea id="custNotes" placeholder="Optional notes"></textarea></div>
+    <div class="sheet-actions">
+      <button class="btn ghost" onclick="closeModal('customerModal')">Cancel</button>
+      <button class="btn primary" onclick="saveCustomer()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- New/Edit Account Modal -->
+<div class="overlay" id="accountModal">
+  <div class="sheet">
+    <h2 id="accountModalTitle">New Account</h2>
+    <div class="field-group">
+      <label>Account Type</label>
+      <select id="accType">
+        <option>GitHub</option>
+        <option>Firebase</option>
+        <option>Gmail</option>
+        <option>Domain Registrar</option>
+        <option>Hosting</option>
+        <option>Other</option>
+      </select>
+    </div>
+    <div class="field-group"><label>Email / Username</label><input id="accEmail" placeholder="e.g. xyztravels@gmail.com"></div>
+    <div class="field-group"><label>Password</label><input id="accPassword" type="text" placeholder="Enter password"></div>
+    <div class="field-group"><label>Created Date</label><input id="accDate" type="date"></div>
+    <div class="field-group"><label>Notes</label><textarea id="accNotes" placeholder="e.g. PAT scope: repo+workflow"></textarea></div>
+    <div class="sheet-actions">
+      <button class="btn ghost" onclick="closeModal('accountModal')">Cancel</button>
+      <button class="btn primary" onclick="saveAccount()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getDatabase, ref, onValue, set, push, remove, update } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBVGVu59jDZybPFAX_pRisSrQRoXHQ0EWY",
+  databaseURL: "https://kmbsc-chit-default-rtdb.asia-southeast1.firebasedatabase.app"
+};
+const fbApp = initializeApp(firebaseConfig);
+const db = getDatabase(fbApp);
+const ROOT = "credentialVault";
+
+const PIN_HASH = "e920894fd8ff1d7d78af860d19bade79561130716a6c03af0e182bdde229fbd1";
+
+let pinBuffer = "";
+let editingCustomerId = null;
+let editingAccountId = null;
+let customersData = {};
+
+async function sha256(str){
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+function updatePinDots(){
+  const dots = document.querySelectorAll('#pinDots span');
+  dots.forEach((d,i)=> d.classList.toggle('filled', i < pinBuffer.length));
+}
+
+document.getElementById('keypad').addEventListener('click', async (e)=>{
+  const btn = e.target.closest('button');
+  if(!btn) return;
+  const k = btn.dataset.k;
+  if(k === 'clear'){ pinBuffer=''; updatePinDots(); document.getElementById('loginError').textContent=''; return; }
+  if(k === 'back'){ pinBuffer = pinBuffer.slice(0,-1); updatePinDots(); return; }
+  if(pinBuffer.length >= 6) return;
+  pinBuffer += k;
+  updatePinDots();
+  if(pinBuffer.length === 6){
+    const hash = await sha256(pinBuffer);
+    if(hash === PIN_HASH){
+      document.getElementById('loginScreen').style.display='none';
+      document.getElementById('mainScreen').style.display='flex';
+      sessionStorage.setItem('mykeys_unlocked','1');
+      startListening();
+    } else {
+      document.getElementById('loginError').textContent = 'Wrong PIN';
+      pinBuffer='';
+      setTimeout(updatePinDots, 100);
+    }
+  }
+});
+
+window.lockApp = function(){
+  sessionStorage.removeItem('mykeys_unlocked');
+  location.reload();
+};
+
+if(sessionStorage.getItem('mykeys_unlocked') === '1'){
+  document.getElementById('loginScreen').style.display='none';
+  document.getElementById('mainScreen').style.display='flex';
+  startListening();
+}
+
+function startListening(){
+  onValue(ref(db, ROOT + '/customers'), (snap)=>{
+    customersData = snap.val() || {};
+    renderCustomers();
+  });
+}
+
+function renderCustomers(filterText){
+  const container = document.getElementById('customerList');
+  const ids = Object.keys(customersData);
+  const filtered = ids.filter(id=>{
+    if(!filterText) return true;
+    const c = customersData[id];
+    const t = (c.name+' '+(c.contact||'')).toLowerCase();
+    return t.includes(filterText.toLowerCase());
+  });
+  if(filtered.length === 0){
+    container.innerHTML = `<div class="empty-state"><div class="vicon">🔐</div><div>No customers yet.<br>Tap + to add one.</div></div>`;
+    return;
+  }
+  container.innerHTML = filtered.map(id=>{
+    const c = customersData[id];
+    const accounts = c.accounts || {};
+    const accIds = Object.keys(accounts);
+    const accountsHtml = accIds.length ? accIds.map(aid=>{
+      const a = accounts[aid];
+      return `
+      <div class="keytag">
+        <div class="type-row">
+          <span class="type">${a.type||'Other'}</span>
+          <span class="kdate">${a.date||''}</span>
+        </div>
+        <div class="field">
+          <span>${a.email||'—'}</span>
+          <button class="mini-btn" onclick="copyText('${escAttr(a.email)}')">📋</button>
+        </div>
+        <div class="field">
+          <span class="masked" id="pw-${aid}">••••••••</span>
+          <span class="field-actions">
+            <button class="mini-btn" onclick="togglePw('${aid}','${escAttr(a.password)}')">👁</button>
+            <button class="mini-btn" onclick="copyText('${escAttr(a.password)}')">📋</button>
+          </span>
+        </div>
+        ${a.notes ? `<div class="notes">${a.notes}</div>` : ''}
+        <div class="row-actions">
+          <button class="edt" onclick="openEditAccount('${id}','${aid}')">Edit</button>
+          <button class="del" onclick="deleteAccount('${id}','${aid}')">Delete</button>
+        </div>
+      </div>`;
+    }).join('') : '<div style="color:var(--muted);font-size:12px;padding:10px 0;">No accounts added yet</div>';
+
+    return `
+    <div class="customer-card">
+      <div class="customer-head" onclick="toggleCustomer(this)">
+        <div class="info">
+          <span class="name">${c.name}</span>
+          <span class="meta">${c.contact||''} ${c.phone? '· '+c.phone : ''}</span>
+        </div>
+        <span class="count">${accIds.length} acc</span>
+      </div>
+      <div class="customer-body">
+        ${accountsHtml}
+        <button class="add-account-btn" onclick="openNewAccount('${id}')">+ Add Account</button>
+        ${c.notes ? `<div class="notes" style="margin-top:10px;">${c.notes}</div>` : ''}
+        <div class="customer-tools">
+          <button class="edt" onclick="openEditCustomer('${id}')">Edit customer</button>
+          <button class="del" onclick="deleteCustomer('${id}')">Delete customer</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function escAttr(s){ return (s||'').replace(/'/g,"\\'"); }
+
+window.toggleCustomer = function(headEl){
+  const body = headEl.nextElementSibling;
+  body.classList.toggle('open');
+};
+
+window.togglePw = function(aid, pw){
+  const el = document.getElementById('pw-'+aid);
+  if(el.textContent === '••••••••'){ el.textContent = pw; }
+  else { el.textContent = '••••••••'; }
+};
+
+window.copyText = function(text){
+  navigator.clipboard.writeText(text).then(()=> showToast('Copied to clipboard'));
+};
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=> t.classList.remove('show'), 1600);
+}
+
+document.getElementById('searchInput').addEventListener('input', (e)=>{
+  renderCustomers(e.target.value);
+});
+
+window.openNewCustomer = function(){
+  editingCustomerId = null;
+  document.getElementById('custName').value='';
+  document.getElementById('custContact').value='';
+  document.getElementById('custPhone').value='';
+  document.getElementById('custNotes').value='';
+  document.getElementById('customerModal').classList.add('show');
+};
+
+window.openEditCustomer = function(id){
+  editingCustomerId = id;
+  const c = customersData[id];
+  document.getElementById('custName').value = c.name||'';
+  document.getElementById('custContact').value = c.contact||'';
+  document.getElementById('custPhone').value = c.phone||'';
+  document.getElementById('custNotes').value = c.notes||'';
+  document.getElementById('customerModal').classList.add('show');
+};
+
+window.saveCustomer = async function(){
+  const name = document.getElementById('custName').value.trim();
+  if(!name){ showToast('Enter a name'); return; }
+  const data = {
+    name,
+    contact: document.getElementById('custContact').value.trim(),
+    phone: document.getElementById('custPhone').value.trim(),
+    notes: document.getElementById('custNotes').value.trim(),
+  };
+  if(editingCustomerId){
+    await update(ref(db, ROOT+'/customers/'+editingCustomerId), data);
+  } else {
+    data.createdAt = new Date().toISOString();
+    const newRef = push(ref(db, ROOT+'/customers'));
+    await set(newRef, data);
+  }
+  closeModal('customerModal');
+  showToast('Saved');
+};
+
+window.deleteCustomer = async function(id){
+  if(!confirm('Delete this customer and all their accounts?')) return;
+  await remove(ref(db, ROOT+'/customers/'+id));
+  showToast('Deleted');
+};
+
+window.openNewAccount = function(customerId){
+  editingCustomerId = customerId;
+  editingAccountId = null;
+  document.getElementById('accountModalTitle').textContent = 'New Account';
+  document.getElementById('accType').value = 'GitHub';
+  document.getElementById('accEmail').value = '';
+  document.getElementById('accPassword').value = '';
+  document.getElementById('accDate').value = new Date().toISOString().slice(0,10);
+  document.getElementById('accNotes').value = '';
+  document.getElementById('accountModal').classList.add('show');
+};
+
+window.openEditAccount = function(customerId, accountId){
+  editingCustomerId = customerId;
+  editingAccountId = accountId;
+  const a = customersData[customerId].accounts[accountId];
+  document.getElementById('accountModalTitle').textContent = 'Edit Account';
+  document.getElementById('accType').value = a.type||'GitHub';
+  document.getElementById('accEmail').value = a.email||'';
+  document.getElementById('accPassword').value = a.password||'';
+  document.getElementById('accDate').value = a.date||'';
+  document.getElementById('accNotes').value = a.notes||'';
+  document.getElementById('accountModal').classList.add('show');
+};
+
+window.saveAccount = async function(){
+  const email = document.getElementById('accEmail').value.trim();
+  if(!email){ showToast('Enter email/username'); return; }
+  const data = {
+    type: document.getElementById('accType').value,
+    email,
+    password: document.getElementById('accPassword').value,
+    date: document.getElementById('accDate').value,
+    notes: document.getElementById('accNotes').value.trim(),
+  };
+  if(editingAccountId){
+    await update(ref(db, ROOT+'/customers/'+editingCustomerId+'/accounts/'+editingAccountId), data);
+  } else {
+    const newRef = push(ref(db, ROOT+'/customers/'+editingCustomerId+'/accounts'));
+    await set(newRef, data);
+  }
+  closeModal('accountModal');
+  showToast('Saved');
+};
+
+window.deleteAccount = async function(customerId, accountId){
+  if(!confirm('Delete this account entry?')) return;
+  await remove(ref(db, ROOT+'/customers/'+customerId+'/accounts/'+accountId));
+  showToast('Deleted');
+};
+
+window.closeModal = function(id){
+  document.getElementById(id).classList.remove('show');
+};
+
+// Close modal on backdrop click
+document.querySelectorAll('.overlay').forEach(o=>{
+  o.addEventListener('click', (e)=>{ if(e.target === o) o.classList.remove('show'); });
+});
+</script>
+
+<script>
+// Service worker registration + auto-update
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('./sw.js');
+  });
+}
+
+const CURRENT_BUILD = document.querySelector('meta[name="app-build"]').content;
+async function checkForUpdate(){
+  try{
+    const res = await fetch('./index.html?ts=' + Date.now(), {cache:'no-store'});
+    const html = await res.text();
+    const match = html.match(/<meta name="app-build" content="([^"]+)"/);
+    if(match && match[1] !== CURRENT_BUILD){
+      const banner = document.getElementById('updateBanner');
+      banner.style.display = 'block';
+      setTimeout(()=> location.reload(true), 2000);
+    }
+  }catch(e){}
+}
+setInterval(checkForUpdate, 60000);
+checkForUpdate();
+</script>
+</body>
+</html>
