@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>MyKeys — Credential Vault</title>
-<meta name="app-build" content="20260723-1">
+<meta name="app-build" content="20260723-2">
 <link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiTXlLZXlzIiwic2hvcnRfbmFtZSI6Ik15S2V5cyIsInN0YXJ0X3VybCI6Ii4vIiwiZGlzcGxheSI6InN0YW5kYWxvbmUiLCJiYWNrZ3JvdW5kX2NvbG9yIjoiIzFCMUUyNCIsInRoZW1lX2NvbG9yIjoiIzFCMUUyNCJ9">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -300,6 +300,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getDatabase, ref, onValue, set, push, remove, update } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBVGVu59jDZybPFAX_pRisSrQRoXHQ0EWY",
@@ -307,7 +308,17 @@ const firebaseConfig = {
 };
 const fbApp = initializeApp(firebaseConfig);
 const db = getDatabase(fbApp);
+const auth = getAuth(fbApp);
 const ROOT = "credentialVault";
+
+let resolveAuthReady;
+const authReadyPromise = new Promise((resolve)=>{ resolveAuthReady = resolve; });
+onAuthStateChanged(auth, (user)=>{
+  if(user) resolveAuthReady();
+});
+signInAnonymously(auth).catch((err)=>{
+  console.error('Auth failed', err);
+});
 
 const PIN_HASH = "e920894fd8ff1d7d78af860d19bade79561130716a6c03af0e182bdde229fbd1";
 
@@ -361,7 +372,8 @@ if(sessionStorage.getItem('mykeys_unlocked') === '1'){
   startListening();
 }
 
-function startListening(){
+async function startListening(){
+  await authReadyPromise;
   onValue(ref(db, ROOT + '/customers'), (snap)=>{
     customersData = snap.val() || {};
     renderCustomers();
