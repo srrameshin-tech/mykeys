@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>MyKeys — Credential Vault</title>
-<meta name="app-build" content="20260723-2">
+<meta name="app-build" content="20260730-2230">
 <link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiTXlLZXlzIiwic2hvcnRfbmFtZSI6Ik15S2V5cyIsInN0YXJ0X3VybCI6Ii4vIiwiZGlzcGxheSI6InN0YW5kYWxvbmUiLCJiYWNrZ3JvdW5kX2NvbG9yIjoiIzFCMUUyNCIsInRoZW1lX2NvbG9yIjoiIzFCMUUyNCJ9">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -240,6 +240,7 @@
   <div id="mainScreen" style="display:none;flex:1;display:flex;flex-direction:column;">
     <header>
       <div class="brand"><span class="dot"></span><h1>MYKEYS</h1></div>
+      <button class="icon-btn" onclick="openChangePin()" title="Change PIN">🔑</button>
       <button class="icon-btn" onclick="lockApp()">⏻</button>
     </header>
     <main>
@@ -291,6 +292,21 @@
     <div class="sheet-actions">
       <button class="btn ghost" onclick="closeModal('accountModal')">Cancel</button>
       <button class="btn primary" onclick="saveAccount()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Change PIN Modal -->
+<div class="overlay" id="changePinModal">
+  <div class="sheet">
+    <h2>🔑 Change PIN</h2>
+    <div class="field-group"><label>Current PIN (6 digits)</label><input id="cpOld" type="password" inputmode="numeric" maxlength="6" placeholder="••••••"></div>
+    <div class="field-group"><label>New PIN (6 digits)</label><input id="cpNew" type="password" inputmode="numeric" maxlength="6" placeholder="••••••"></div>
+    <div class="field-group"><label>Confirm New PIN</label><input id="cpConfirm" type="password" inputmode="numeric" maxlength="6" placeholder="••••••"></div>
+    <div id="cpError" style="color:#ff6b6b;font-size:13px;margin-bottom:8px;"></div>
+    <div class="sheet-actions">
+      <button class="btn ghost" onclick="closeModal('changePinModal')">Cancel</button>
+      <button class="btn primary" onclick="saveNewPin()">Save</button>
     </div>
   </div>
 </div>
@@ -386,7 +402,7 @@ signInAnonymously(auth).catch((err)=>{
   console.error('Auth failed', err);
 });
 
-const PIN_HASH = "e920894fd8ff1d7d78af860d19bade79561130716a6c03af0e182bdde229fbd1";
+let PIN_HASH = "48290cf691c41cbc99b2396d2e5313ccfba91987b384e6d8f08b951fa5045e83"; // default seed, overridden by Firebase config/pinHash if set
 
 let pinBuffer = "";
 let editingCustomerId = null;
@@ -397,6 +413,22 @@ async function sha256(str){
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
 }
+
+let pinHashReady = false;
+async function loadPinHash(){
+  try{
+    await authReadyPromise;
+    const snap = await get(ref(db, ROOT + '/config/pinHash'));
+    if(snap.exists() && snap.val()){
+      PIN_HASH = snap.val();
+    } else {
+      // first run: seed Firebase with the default hash so it's consistent across devices
+      set(ref(db, ROOT + '/config/pinHash'), PIN_HASH).catch(()=>{});
+    }
+  }catch(e){ console.error('PIN load failed', e); }
+  pinHashReady = true;
+}
+loadPinHash();
 
 function updatePinDots(){
   const dots = document.querySelectorAll('#pinDots span');
@@ -413,6 +445,12 @@ document.getElementById('keypad').addEventListener('click', async (e)=>{
   pinBuffer += k;
   updatePinDots();
   if(pinBuffer.length === 6){
+    if(!pinHashReady){
+      document.getElementById('loginError').textContent = 'Loading, try again in a sec...';
+      pinBuffer='';
+      setTimeout(updatePinDots, 100);
+      return;
+    }
     const hash = await sha256(pinBuffer);
     if(hash === PIN_HASH){
       document.getElementById('loginScreen').style.display='none';
@@ -638,6 +676,40 @@ window.deleteAccount = async function(customerId, accountId){
 
 window.closeModal = function(id){
   document.getElementById(id).classList.remove('show');
+};
+
+window.openChangePin = function(){
+  document.getElementById('cpOld').value = '';
+  document.getElementById('cpNew').value = '';
+  document.getElementById('cpConfirm').value = '';
+  document.getElementById('cpError').textContent = '';
+  document.getElementById('changePinModal').classList.add('show');
+};
+
+window.saveNewPin = async function(){
+  const oldPin = document.getElementById('cpOld').value.trim();
+  const newPin = document.getElementById('cpNew').value.trim();
+  const confirmPin = document.getElementById('cpConfirm').value.trim();
+  const errEl = document.getElementById('cpError');
+  if(!/^\d{6}$/.test(oldPin) || !/^\d{6}$/.test(newPin) || !/^\d{6}$/.test(confirmPin)){
+    errEl.textContent = 'Ella fields-um exact 6 digits venum'; return;
+  }
+  const oldHash = await sha256(oldPin);
+  if(oldHash !== PIN_HASH){
+    errEl.textContent = 'Current PIN thavaru'; return;
+  }
+  if(newPin !== confirmPin){
+    errEl.textContent = 'New PIN match aagala'; return;
+  }
+  const newHash = await sha256(newPin);
+  try{
+    await set(ref(db, ROOT + '/config/pinHash'), newHash);
+    PIN_HASH = newHash;
+    closeModal('changePinModal');
+    showToast('PIN maathiyaachu ✓');
+  }catch(e){
+    errEl.textContent = 'Save fail aachu, network check pannunga';
+  }
 };
 
 // Close modal on backdrop click
